@@ -3,6 +3,8 @@ loadAPI(1);
 host.defineController("Novation", "Impulse 25", "1.0", "3B1F8670-2433-11E2-81C1-0800200C9A66");
 host.defineMidiPorts(1, 1);
 host.addDeviceNameBasedDiscoveryPair(["Impulse"], ["Impulse"]);
+host.addDeviceNameBasedDiscoveryPair(["Novation Impulse"], ["Novation Impulse"]);
+host.addDeviceNameBasedDiscoveryPair(["Novation Impulse MIDI 1"], ["Novation Impulse MIDI 1"]);
 for ( var i = 1; i < 9; i++)
 {
 	var name = i.toString() + "- Impulse";
@@ -92,31 +94,30 @@ var macroIndex = 0;
 var playPads = 145;
 var padShift = 0;
 
-function init()
-{
+function init() {
 	host.getMidiInPort(0).setMidiCallback(onMidi);
 	host.getMidiInPort(0).setSysexCallback(onSysex);
-	// host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "B040??", "D0????", "E0????"); // "B040??"-> stops the 5th pad to work
-	host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "D0????", "E0????");
+	host.getMidiOutPort(0).setShouldSendMidiBeatClock(true);
+   // host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "B040??", "D0????", "E0????"); // "B040??"-> stops the 5th pad to work
+	impulse = host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "D0????", "E0????");
 	// host.getMidiInPort(0).createNoteInput("Impulse Pads", "81????", "91????", "D1????", "E1????");
-	sendSysex(SYSEX_HEADER + "06 01 01 01 F7");
+	   //sendSysex(SYSEX_HEADER + "06 01 01 01 F7");
 	// sendSysex(SYSEX_HEADER + "08" + "20 62 69 74 77 69 67 20 20 F7"); //bitwig string to display
-	sendSysex(SYSEX_HEADER + "07 19 F7");
+	   //sendSysex(SYSEX_HEADER + "07 19 F7");
 	sendChannelController(60, 48 + 5, 0);
 	sendChannelController(0xb1, 10, 127);
 	// sendSysex("F0 00 20 29 67 08 31 2D 41 75 64 69 6F 20 20 20 20 20 20 20 20 20 F7"); // displaytest?
 
 	// /////////// Host
-	transport = host.createTransportSection();
-	transport.addIsPlayingObserver(function(on)
-	{
+	transport = host.createTransport();
+	transport.addIsPlayingObserver(function(on) {
 		isPlay = on;
 	});
 
-	trackBank = host.createTrackBankSection(8, 2, 0);
-	cursorTrack = host.createCursorTrackSection(2, 0);
-	cursorDevice = host.createCursorDeviceSection(8);
-	clipGrid = host.createTrackBankSection(2, 0, 4);
+	trackBank = host.createTrackBank(8, 2, 0);
+	cursorTrack = host.createCursorTrack(2, 0);
+	cursorDevice = host.createCursorDevice();
+	clipGrid = host.createTrackBank(2, 0, 4);
 	primaryInstrument = cursorTrack.getPrimaryInstrument();
 
 	for ( var p = 0; p < 8; p++)
@@ -175,7 +176,7 @@ function exit()
 
 function onMidi(status, data1, data2)
 {
-//	printMidi(status, data1, data2);
+	printMidi(status, data1, data2);
 	if (isNoteOn(status))
 	{
 		if (status == playPads && data2 > 0)
@@ -227,10 +228,12 @@ function onMidi(status, data1, data2)
 			else if (data1 == CC.PLUGIN)
 			{
 				setEncoderMode(pluginPage);
+            host.showPopupNotification("Device Page");
 			}
 			else if (data1 == CC.MIXER)
 			{
 				setEncoderMode(mixerPage);
+            host.showPopupNotification("Mixer Page")
 			}
 			if (data1 == CC.PAGE_UP)
 			{
@@ -281,7 +284,7 @@ function onMidi(status, data1, data2)
 				switch (cc)
 				{
 					case CC.PLAY:
-						isLoopPressed ? transport.returnToArrangerment() : transport.play();
+						isLoopPressed ? transport.returnToArrangement() : transport.play();
 						break;
 
 					case CC.STOP:
@@ -320,7 +323,7 @@ function onMidi(status, data1, data2)
 
 function onSysex(data)
 {
-	// printSysex(data);
+	printSysex(data);
 }
 
 function EncoderObject()
@@ -381,10 +384,9 @@ pluginPage.setIndications = function(isShift)
 		case "pressed":
 			for ( var p = 0; p < 8; p++)
 			{
-				macro = primaryInstrument.getMacro(p).getAmount();
+				primaryInstrument.getMacro(p).getAmount().setIndication(false);
 				track = trackBank.getTrack(p);
 				cursorDevice.getParameter(p).setIndication(true);
-				macro.setIndication(false);
 				track.getVolume().setIndication(false);
 				track.getPan().setIndication(false);
 			}
@@ -392,15 +394,12 @@ pluginPage.setIndications = function(isShift)
 		case "notpressed":
 			for ( var p = 0; p < 8; p++)
 			{
-				macro = primaryInstrument.getMacro(p).getAmount();
+				primaryInstrument.getMacro(p).getAmount().setIndication(true);
 				track = trackBank.getTrack(p);
 				cursorDevice.getParameter(p).setIndication(false);
-				macro.setIndication(true);
 				track.getVolume().setIndication(false);
 				track.getPan().setIndication(false);
 			}
-			break;
-		default:
 			break;
 	}
 }
@@ -490,11 +489,10 @@ mixerPage.setIndications = function(isShift)
 		case "pressed":
 			for ( var p = 0; p < 8; p++)
 			{
-				macro = primaryInstrument.getMacro(p).getAmount();
+				primaryInstrument.getMacro(p).getAmount().setIndication(false);
 				track = trackBank.getTrack(p);
 				track.getVolume().setIndication(false);
 				track.getPan().setIndication(true);
-				macro.setIndication(false);
 				cursorDevice.getParameter(p).setIndication(false);
 			}
 			break;
