@@ -1,10 +1,8 @@
 loadAPI(1);
 
 host.defineController("Novation", "Impulse 25", "1.0", "3B1F8670-2433-11E2-81C1-0800200C9A66");
-host.defineMidiPorts(1, 1);
-host.addDeviceNameBasedDiscoveryPair(["Impulse"], ["Impulse"]);
-host.addDeviceNameBasedDiscoveryPair(["Novation Impulse"], ["Novation Impulse"]);
-host.addDeviceNameBasedDiscoveryPair(["Novation Impulse MIDI 1"], ["Novation Impulse MIDI 1"]);
+host.defineMidiPorts(2, 1);
+host.addDeviceNameBasedDiscoveryPair(["Impulse", "MIDIIN2 (Impulse)"], ["Impulse"]);
 for ( var i = 1; i < 9; i++) {
 	var name = i.toString() + "- Impulse";
 	host.addDeviceNameBasedDiscoveryPair([name], [name]);
@@ -95,16 +93,20 @@ var padShift = 0;
 
 function init() {
 	host.getMidiInPort(0).setMidiCallback(onMidi);
+	host.getMidiInPort(1).setMidiCallback(onMidi);
 	host.getMidiInPort(0).setSysexCallback(onSysex);
 	host.getMidiOutPort(0).setShouldSendMidiBeatClock(true);
    impulseKeys = host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "B040??", "D0????", "E0????"); // "B040??"-> stops the 5th pad to work
+   impulseKeys = host.getMidiInPort(1).createNoteInput("Impulse Keyboard2", "80????", "90????", "B001??", "B040??", "D0????", "E0????"); // "B040??"-> stops the 5th pad to work
 	//impulseKeys = host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "D0????", "E0????");
 	impulsePads = host.getMidiInPort(0).createNoteInput("Impulse Pads", "81????", "91????", "D1????", "E1????");
-	   //sendSysex(SYSEX_HEADER + "06 01 01 01 F7");
-	// sendSysex(SYSEX_HEADER + "08" + "20 62 69 74 77 69 67 20 20 F7"); //bitwig string to display
-	   //sendSysex(SYSEX_HEADER + "07 19 F7");
+
+   // Set the Impulse to the needed Mode:
+	   sendSysex(SYSEX_HEADER + "06 01 01 01 F7");
+	   sendSysex(SYSEX_HEADER + "07 19 F7");
 	sendChannelController(60, 48 + 5, 0);
 	sendChannelController(0xb1, 10, 127);
+	// sendSysex(SYSEX_HEADER + "08" + "20 62 69 74 77 69 67 20 20 F7"); //bitwig string to display
 	// sendSysex("F0 00 20 29 67 08 31 2D 41 75 64 69 6F 20 20 20 20 20 20 20 20 20 F7"); // displaytest?
 
 	// /////////// Host
