@@ -1,10 +1,9 @@
 loadAPI(1);
 
 host.defineController("Novation", "Impulse 25", "1.0", "3B1F8670-2433-11E2-81C1-0800200C9A66");
-host.defineMidiPorts(1, 1);
-host.addDeviceNameBasedDiscoveryPair(["Impulse"], ["Impulse"]);
-for ( var i = 1; i < 9; i++)
-{
+host.defineMidiPorts(2, 1);
+host.addDeviceNameBasedDiscoveryPair(["Impulse", "MIDIIN2 (Impulse)"], ["Impulse"]);
+for ( var i = 1; i < 9; i++) {
 	var name = i.toString() + "- Impulse";
 	host.addDeviceNameBasedDiscoveryPair([name], [name]);
 	host.addDeviceNameBasedDiscoveryPair(["Impulse MIDI " + i.toString()], ["Impulse MIDI " + i.toString()]);
@@ -92,67 +91,50 @@ var macroIndex = 0;
 var playPads = 145;
 var padShift = 0;
 
-function init()
-{
+function init() {
 	host.getMidiInPort(0).setMidiCallback(onMidi);
+	host.getMidiInPort(1).setMidiCallback(onMidi);
 	host.getMidiInPort(0).setSysexCallback(onSysex);
-	// host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "B040??", "D0????", "E0????"); // "B040??"-> stops the 5th pad to work
-	host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "D0????", "E0????");
-	// host.getMidiInPort(0).createNoteInput("Impulse Pads", "81????", "91????", "D1????", "E1????");
-	sendSysex(SYSEX_HEADER + "06 01 01 01 F7");
-	// sendSysex(SYSEX_HEADER + "08" + "20 62 69 74 77 69 67 20 20 F7"); //bitwig string to display
-	sendSysex(SYSEX_HEADER + "07 19 F7");
+	host.getMidiOutPort(0).setShouldSendMidiBeatClock(true);
+   impulseKeys = host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B?01??", "B040??", "D0????", "E0????"); // "B040??"-> stops the 5th pad to work
+   impulseKeys = host.getMidiInPort(1).createNoteInput("Impulse Keyboard2", "80????", "90????", "B001??", "B040??", "D0????", "E0????"); // "B040??"-> stops the 5th pad to work
+	//impulseKeys = host.getMidiInPort(0).createNoteInput("Impulse Keyboard", "80????", "90????", "B001??", "D0????", "E0????");
+	impulsePads = host.getMidiInPort(0).createNoteInput("Impulse Pads", "81????", "91????", "D1????", "E1????");
+
+   // Set the Impulse to the needed Mode:
+	   sendSysex(SYSEX_HEADER + "06 01 01 01 F7");
+	   sendSysex(SYSEX_HEADER + "07 19 F7");
 	sendChannelController(60, 48 + 5, 0);
 	sendChannelController(0xb1, 10, 127);
+	// sendSysex(SYSEX_HEADER + "08" + "20 62 69 74 77 69 67 20 20 F7"); //bitwig string to display
 	// sendSysex("F0 00 20 29 67 08 31 2D 41 75 64 69 6F 20 20 20 20 20 20 20 20 20 F7"); // displaytest?
 
 	// /////////// Host
-	transport = host.createTransportSection();
-	transport.addIsPlayingObserver(function(on)
-	{
+	transport = host.createTransport();
+	transport.addIsPlayingObserver(function(on) {
 		isPlay = on;
 	});
 
-	trackBank = host.createTrackBankSection(8, 2, 0);
-	cursorTrack = host.createCursorTrackSection(2, 0);
-	cursorDevice = host.createCursorDeviceSection(8);
-	clipGrid = host.createTrackBankSection(2, 0, 4);
+	trackBank = host.createTrackBank(8, 2, 0);
+	cursorTrack = host.createCursorTrack(2, 0);
+	cursorDevice = host.createCursorDevice();
+	clipGrid = host.createTrackBank(2, 0, 4);
 	primaryInstrument = cursorTrack.getPrimaryInstrument();
 
-	for ( var p = 0; p < 8; p++)
-	{
+   clipGrid.getTrack(0).getClipLauncherSlots().setIndication(true);
+   clipGrid.getTrack(1).getClipLauncherSlots().setIndication(true);
+
+	for ( var p = 0; p < 8; p++) {
 		var parameter = cursorDevice.getParameter(p);
 		macro = primaryInstrument.getMacro(p);
 		macro.getAmount().setIndication(true);
-		// macro.addValueDisplayObserver(10, "", pluginPage.getPathToObject.setter(p));
-		// macro.addValueObserver(128, pluginPage.getPathToObject.setter(p));
 		parameter.setLabel("P" + (p + 1));
-
-		// macro.addLabelObserver(8, "", getObserverIndex(p, function(index, text)
-		// {
-		// pluginPage.macroLabelBuffer(index, text);
-		// }));
-		macro.getAmount().addValueDisplayObserver(3, "", getObserverIndex(p, function(index, value)
-		{
-			// macroIndex = index;
-			// println(macroIndex);
+		macro.getAmount().addValueDisplayObserver(3, "", getObserverIndex(p, function(index, value) {
 			pluginPage.valueToDisplay(value);
-			// pluginPage.sendToDisplay();
 		}));
-		// trackBank.getTrack(p).getVolume().addValueDisplayObserver(4, "", getObserverIndex(p, function(index, value)
-		// {
-		// sendSysex(SYSEX_HEADER + "08" + "Volume ".toHex(7) + uint7ToHex(index + 49) + " F7");
-		// sendSysex(SYSEX_HEADER + "09" + value.toHex(4) + " F7");
-		// }));
-		// trackBank.getTrack(p).getPan().addValueDisplayObserver(4, "", getObserverIndex(p, function(index, value)
-		// {
-		// sendSysex(SYSEX_HEADER + "08" + "Pan ".toHex(4) + uint7ToHex(index + 49) + " F7");
-		// sendSysex(SYSEX_HEADER + "09" + value.toHex(4) + "25 F7");
-		// }));
 	}
 
-	for ( var t = 0; t < 2; t++)
-	{
+	for ( var t = 0; t < 2; t++) 	{
 		var grid = clipGrid.getTrack(t);
 		var clipLauncher = grid.getClipLauncher();
 		clipLauncher.addHasContentObserver(getGridObserverFunc(t, hasContent));
@@ -160,108 +142,59 @@ function init()
 		clipLauncher.addIsQueuedObserver(getGridObserverFunc(t, isQueued));
 		clipLauncher.addIsRecordingObserver(getGridObserverFunc(t, isRecording));
 	}
-	cursorTrack.addNameObserver(16, "", function(text)
-	{
+	cursorTrack.addNameObserver(16, "", function(text) {
 		sendSysex(SYSEX_HEADER + "08" + text.toHex(text.length) + " F7");
 	});
-	// cursorTrack.getVolume().addValueDisplayObserver(3, "", valueToDisplay(value));
+
 	initImpulse();
-
 }
 
-function exit()
-{
+function exit() {
 }
 
-function onMidi(status, data1, data2)
-{
-//	printMidi(status, data1, data2);
-	if (isNoteOn(status))
-	{
-		if (status == playPads && data2 > 0)
-		{
-			if (data1 >= NOTE.PAD5 && data1 <= NOTE.PAD4)
-			{
-				switch (data1)
-				{
-					case NOTE.PAD1:
-						cursorTrack.playNote(PAD.P1 + padShift, data2);
-						break;
-					case NOTE.PAD2:
-						cursorTrack.playNote(PAD.P2 + padShift, data2);
-						break;
-					case NOTE.PAD3:
-						cursorTrack.playNote(PAD.P3 + padShift, data2);
-						break;
-					case NOTE.PAD4:
-						cursorTrack.playNote(PAD.P4 + padShift, data2);
-						break;
-					case NOTE.PAD5:
-						cursorTrack.playNote(PAD.P5 + padShift, data2);
-						break;
-					case NOTE.PAD6:
-						cursorTrack.playNote(PAD.P6 + padShift, data2);
-						break;
-					case NOTE.PAD7:
-						cursorTrack.playNote(PAD.P7 + padShift, data2);
-						break;
-					case NOTE.PAD8:
-						cursorTrack.playNote(PAD.P8 + padShift, data2);
-						break;
-				}
-			}
-		}
-	}
-	if (isChannelController(status))
-	{
-		if (status == 0xb1)
-		{
+function onMidi(status, data1, data2) {
+	printMidi(status, data1, data2);
 
-			if (data1 >= 0 && data1 <= 7) // Rotary Encoders
-			{
+	if (isChannelController(status)) {
+		if (status == 0xb1) {
+
+			if (data1 >= 0 && data1 <= 7) { // Rotary Encoders
 				var relativeRange = isLoopPressed ? 500 : 100;
 				var encoderId = data1;
 				impulseActiveEncoderPage.onEncoder(encoderId, data2 - 64, relativeRange);
-
 			}
-			else if (data1 == CC.PLUGIN)
-			{
+			else if (data1 == CC.PLUGIN) {
 				setEncoderMode(pluginPage);
+            host.showPopupNotification("Device Page");
 			}
-			else if (data1 == CC.MIXER)
-			{
+			else if (data1 == CC.MIXER) {
 				setEncoderMode(mixerPage);
+            host.showPopupNotification("Mixer Page")
 			}
-			if (data1 == CC.PAGE_UP)
-			{
+			else if (data1 == CC.PAGE_UP) {
 				isShiftPressed = false;
 				impulseActiveEncoderPage.setIndications("notpressed");
 				impulseActiveEncoderPage.pageUp();
 			}
-			if (data1 == CC.PAGE_DOWN)
-			{
+			else if (data1 == CC.PAGE_DOWN) {
 				isShiftPressed = false;
 				impulseActiveEncoderPage.setIndications("notpressed");
 				impulseActiveEncoderPage.pageDown();
 			}
 
 		}
-		if (status == 0xb0)
-		{
+		if (status == 0xb0) {
 			var cc = data1;
 			var val = data2;
 			var pressed = cc - CLIP.PAD1;
-			if (cc >= CLIP.PAD1 && cc < CLIP.PAD1 + 4)
-			{
+			if (cc >= CLIP.PAD1 && cc < CLIP.PAD1 + 4) {
 				isLoopPressed ? clipGrid.launchScene(pressed) : clipGrid.getTrack(0).getClipLauncher().launch(pressed);
 			}
-			else if (cc >= CLIP.PAD1 + 4 && cc < CLIP.PAD1 + 8)
-			{
+			else if (cc >= CLIP.PAD1 + 4 && cc < CLIP.PAD1 + 8) {
 				isLoopPressed ? clipGrid.launchScene(pressed - 4) : clipGrid.getTrack(1).getClipLauncher().launch(pressed - 4);
 			}
 
-			switch (cc)
-			{
+			switch (cc) {
 				case CC.SLIDER:
 					cursorTrack.getVolume().set(val, 128);
 					break;
@@ -276,12 +209,11 @@ function onMidi(status, data1, data2)
 					break;
 			}
 
-			if (val > 0) // ignore button release
-			{
-				switch (cc)
-				{
+			if (val > 0) { // ignore button release
+
+				switch (cc) {
 					case CC.PLAY:
-						isLoopPressed ? transport.returnToArrangerment() : transport.play();
+						isLoopPressed ? transport.returnToArrangement() : transport.play();
 						break;
 
 					case CC.STOP:
@@ -318,131 +250,93 @@ function onMidi(status, data1, data2)
 
 }
 
-function onSysex(data)
-{
-	// printSysex(data);
+function onSysex(data) {
+	printSysex(data);
 }
 
-function EncoderObject()
-{
+function EncoderObject() {
 	this.textBuffer = [];
 
-	for ( var i = 0; i < NUM_COLUMS; i++)
-	{
+	for ( var i = 0; i < NUM_COLUMS; i++) {
 		this.textBuffer[i] = ' ';
 	}
 }
 
-EncoderObject.prototype.onEncoder = function(index, diff, range)
-{
+EncoderObject.prototype.onEncoder = function(index, diff, range) {
 	this.getPathToObject(index).inc(diff, range);
 };
 
-// EncoderObject.prototype.setter = function(index)
-// {
-// var obj = this;
-//
-// return function(data)
-// {
-// obj.set(index, data);
-// }
-// };
-
 var pluginPage = new EncoderObject();
 
-pluginPage.getPathToObject = function(index)
-{
+pluginPage.getPathToObject = function(index) {
 	return isShiftPressed ? cursorDevice.getParameter(index) : primaryInstrument.getMacro(index).getAmount();
 };
 
-pluginPage.rewindAction = function()
-{
+pluginPage.rewindAction = function() {
 	isShiftPressed ? cursorDevice.previousParameterPage() : isLoopPressed ? clipGrid.scrollTracksUp() : clipGrid.scrollScenesUp();
 }
 
-pluginPage.forwardAction = function()
-{
+pluginPage.forwardAction = function() {
 	isShiftPressed ? cursorDevice.nextParameterPage() : isLoopPressed ? clipGrid.scrollTracksDown() : clipGrid.scrollScenesDown();
 }
-pluginPage.pageUp = function()
-{
+pluginPage.pageUp = function() {
 	cursorDevice.selectPrevious();
 }
 
-pluginPage.pageDown = function()
-{
+pluginPage.pageDown = function() {
 	cursorDevice.selectNext();
 }
 
-pluginPage.setIndications = function(isShift)
-{
-	switch (isShift)
-	{
+pluginPage.setIndications = function(isShift) {
+	switch (isShift) 	{
 		case "pressed":
-			for ( var p = 0; p < 8; p++)
-			{
-				macro = primaryInstrument.getMacro(p).getAmount();
+			for ( var p = 0; p < 8; p++) {
+				primaryInstrument.getMacro(p).getAmount().setIndication(false);
 				track = trackBank.getTrack(p);
 				cursorDevice.getParameter(p).setIndication(true);
-				macro.setIndication(false);
 				track.getVolume().setIndication(false);
 				track.getPan().setIndication(false);
 			}
 			break;
 		case "notpressed":
-			for ( var p = 0; p < 8; p++)
-			{
-				macro = primaryInstrument.getMacro(p).getAmount();
+			for ( var p = 0; p < 8; p++) {
+				primaryInstrument.getMacro(p).getAmount().setIndication(true);
 				track = trackBank.getTrack(p);
 				cursorDevice.getParameter(p).setIndication(false);
-				macro.setIndication(true);
 				track.getVolume().setIndication(false);
 				track.getPan().setIndication(false);
 			}
-			break;
-		default:
 			break;
 	}
 }
 
 // //////////////////// work in progress ///////////////////////
-pluginPage.macroLabelBuffer = function(index, text)
-{
+pluginPage.macroLabelBuffer = function(index, text) {
 	var param = index * NUM_COLUMS;
 	var forcedText = text.forceLength(NUM_COLUMS);
-	for ( var i = 0; i < NUM_COLUMS; i++)
-	{
+	for ( var i = 0; i < NUM_COLUMS; i++) {
 		this.textBuffer[i + param] = forcedText[i];
 	}
 	pluginPage.sendToDisplay();
 }
-pluginPage.sendToDisplay = function()
-{
-	{
+pluginPage.sendToDisplay = function() {
 		var tb = macroIndex * NUM_COLUMS;
 		var text = "";
 
-		for ( var i = 0; i < NUM_COLUMS; i++)
-		{
+		for ( var i = 0; i < NUM_COLUMS; i++) {
 			text += this.textBuffer[tb + i];
 		}
 		sendSysex(SYSEX_HEADER + "08" + this.textBuffer[text].toHex(NUM_COLUMS) + "F7");
-	}
-	;
 }
 
-pluginPage.valueToDisplay = function(value)
-{
-	if (parseInt(value) < 10)
-	{
+pluginPage.valueToDisplay = function(value) {
+	if (parseInt(value) < 10) {
 		sendSysex(SYSEX_HEADER + "09 20 20" + value.toHex(1) + "F7");
 	}
-	else if (parseInt(value) >= 10 && parseInt(value) < 100)
-	{
+	else if (parseInt(value) >= 10 && parseInt(value) < 100) {
 		sendSysex(SYSEX_HEADER + "09 20" + value.toHex(2) + "F7");
 	}
-	else
-	{
+	else {
 		sendSysex(SYSEX_HEADER + "09" + value.toHex(3) + "F7");
 	}
 }
@@ -450,57 +344,45 @@ pluginPage.valueToDisplay = function(value)
 
 var mixerPage = new EncoderObject();
 
-mixerPage.getPathToObject = function(index)
-{
-	if (isShiftPressed)
-	{
+mixerPage.getPathToObject = function(index) {
+	if (isShiftPressed) {
 		return trackBank.getTrack(index).getPan();
 	}
-	else
-	{
+	else {
 		return trackBank.getTrack(index).getVolume();
 	}
 };
 
-mixerPage.rewindAction = function()
-{
+mixerPage.rewindAction = function() {
 	isShiftPressed ? transport.rewind() : isLoopPressed ? clipGrid.scrollTracksUp() : clipGrid.scrollScenesUp();
 }
 
-mixerPage.forwardAction = function()
-{
+mixerPage.forwardAction = function() {
 	isShiftPressed ? transport.fastForward() : isLoopPressed ? clipGrid.scrollTracksDown() : clipGrid.scrollScenesDown();
 }
 
-mixerPage.pageUp = function()
-{
+mixerPage.pageUp = function() {
 	trackBank.scrollTracksPageUp();
 
 }
 
-mixerPage.pageDown = function()
-{
+mixerPage.pageDown = function() {
 	trackBank.scrollTracksPageDown();
 
 }
-mixerPage.setIndications = function(isShift)
-{
-	switch (isShift)
-	{
+mixerPage.setIndications = function(isShift) {
+	switch (isShift) {
 		case "pressed":
-			for ( var p = 0; p < 8; p++)
-			{
-				macro = primaryInstrument.getMacro(p).getAmount();
+			for ( var p = 0; p < 8; p++) {
+				primaryInstrument.getMacro(p).getAmount().setIndication(false);
 				track = trackBank.getTrack(p);
 				track.getVolume().setIndication(false);
 				track.getPan().setIndication(true);
-				macro.setIndication(false);
 				cursorDevice.getParameter(p).setIndication(false);
 			}
 			break;
 		case "notpressed":
-			for ( var p = 0; p < 8; p++)
-			{
+			for ( var p = 0; p < 8; p++) {
 				macro = primaryInstrument.getMacro(p).getAmount();
 				track = trackBank.getTrack(p);
 				track.getVolume().setIndication(true);
@@ -509,48 +391,37 @@ mixerPage.setIndications = function(isShift)
 				cursorDevice.getParameter(p).setIndication(false);
 			}
 			break;
-		default:
-			break;
 	}
 
 }
 
 var impulseActiveEncoderPage = pluginPage;
 
-function setEncoderMode(page)
-{
+function setEncoderMode(page) {
 	impulseActiveEncoderPage = page;
 	impulseActiveEncoderPage.setIndications("notpressed");
 }
-function valueToDisplay(value)
-{
-	if (parseInt(value) < 10)
-	{
+function valueToDisplay(value) {
+	if (parseInt(value) < 10) {
 		sendSysex(SYSEX_HEADER + "09 20 20" + value.toHex(1) + "F7");
 	}
-	else if (parseInt(value) >= 10 && parseInt(value) < 100)
-	{
+	else if (parseInt(value) >= 10 && parseInt(value) < 100) {
 		sendSysex(SYSEX_HEADER + "09 20" + value.toHex(2) + "F7");
 	}
-	else
-	{
+	else {
 		sendSysex(SYSEX_HEADER + "09" + value.toHex(3) + "F7");
 	}
 }
 
-function getObserverIndex(index, f)
-{
+function getObserverIndex(index, f) {
 	macroIndex = index;
-	return function(value)
-	{
+	return function(value) {
 		f(index, value);
 	};
 }
 
-function getGridObserverFunc(track, varToStore)
-{
-	return function(scene, value)
-	{
+function getGridObserverFunc(track, varToStore) {
+	return function(scene, value) {
 		var index = track * 4 + (scene + 1);
 		varToStore[index] = value;
 		var state = isRecording[index] ? color.RED : isPlaying[index] ? color.FULL_GREEN : isQueued[index] ? color.LIGHT_GREEN : hasContent[index] ? color.YELLOW : arm[track] ? color.ORANGE : color.OFF;
@@ -559,27 +430,10 @@ function getGridObserverFunc(track, varToStore)
 	};
 }
 
-function setClipGridLEDs(button, state)
-{
+function setClipGridLEDs(button, state) {
 	sendNoteOn(0xB0, 59 + button, state);
 }
 
-function initImpulse()
-{
+function initImpulse() {
 	impulseActiveEncoderPage.setIndications("notpressed");
 }
-
-// ////////// not used since using native mode
-// sendSysex ("F0 00 20 29 43 00 00 42 61 73 63 4D 49 44 49 00 03 02 01 3C
-// 0B 00 24 3B 40 00 00 3C 60 40 01 00 24 54 40 10 04 24 54 40 10 04 09 15
-// 7F 00 10 08 01 09 16 7F 00 10 08 01 09 17 7F 00 10 08 01 09 18 7F 00 10
-// 08 01 09 19 7F 00 10 08 01 09 1A 7F 00 10 08 01 09 1B 7F 00 10 08 01 09
-// 1C 7F 00 10 08 01 08 43 7F 00 01 08 01 08 45 7F 00 01 08 01 08 47 7F 00
-// 01 08 01 08 48 7F 00 01 08 01 08 3C 7F 00 01 08 01 08 3E 7F 00 01 08 01
-// 08 40 7F 00 01 08 01 08 41 7F 00 01 08 01 09 29 7F 00 10 08 01 09 2A 7F
-// 00 10 08 01 09 2B 7F 00 10 08 01 09 2C 7F 00 10 08 01 09 2D 7F 00 10 08
-// 01 09 2E 7F 00 10 08 01 09 2F 7F 00 10 08 01 09 30 7F 00 10 08 01 09 31
-// 7F 00 10 08 01 11 33 7F 00 10 08 01 11 34 7F 00 10 08 01 11 35 7F 00 10
-// 08 01 11 36 7F 00 10 08 01 11 37 7F 00 10 08 01 11 38 7F 00 10 08 01 11
-// 39 7F 00 10 08 01 11 3A 7F 00 10 08 01 11 3B 7F 00 10 08 01 09 01 7F 00
-// 10 08 01 F7");
